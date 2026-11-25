@@ -41,6 +41,13 @@ test("kill switch blocks", () => {
   );
 });
 
+test("unknown tool blocks", () => {
+  assert.deepEqual(decide(policy, meter, "not_registered", new Date("2099-01-01T12:00:00Z")), {
+    allow: false,
+    reason: "unknown_tool",
+  });
+});
+
 test("applySpend rolls day", () => {
   assert.deepEqual(
     applySpend({ day: "2099-01-01", spentUsd: 0.5 }, 0.01, new Date("2099-01-02T00:00:00Z")),

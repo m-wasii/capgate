@@ -46,3 +46,25 @@ npm start
   }
 }
 ```
+
+## Gate your own MCP tools
+
+Demos (`capgate_demo_*`) are examples. Wrap real tools with `registerGatedTool` so spend and approval apply. Names not listed under `tools:` in policy are blocked with `unknown_tool`.
+
+```ts
+import { z } from "zod";
+import { registerGatedTool } from "./gate.js";
+
+// policy.example.yaml (or cloud policy) must include this name:
+//   shell_exec:
+//     risk: spend
+//     costUsd: 0.02
+
+registerGatedTool(
+  server,
+  "shell_exec",
+  "Run a shell command (stub). High-risk; needs approval.",
+  { command: z.string() },
+  ({ command }) => JSON.stringify({ ok: true, stub: true, command }),
+);
+```
