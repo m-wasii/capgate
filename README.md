@@ -24,13 +24,27 @@ npm start
 
 **Cloud** (approvals + meter on control plane):
 
+Local control plane:
+
 ```bash
 set CAPGATE_API_URL=http://localhost:3000
 set CAPGATE_API_KEY=dev-key
 npm start
 ```
 
+Hosted control plane (dashboard, durable meter, rotated keys): set `CAPGATE_API_URL` to your deployed `capgate-cloud` HTTPS origin and `CAPGATE_API_KEY` to an active Bearer key from the dashboard (or the one-time seed from `CAPGATE_DEV_KEY` on Railway). Do not commit production secrets.
+
+Example (replace the key):
+
+```bash
+set CAPGATE_API_URL=https://control-plane-production-163a495c.up.railway.app
+set CAPGATE_API_KEY=<your-bearer-key>
+npm start
+```
+
 ## Cursor MCP config
+
+Local:
 
 ```json
 {
@@ -46,6 +60,8 @@ npm start
   }
 }
 ```
+
+Hosted: use the same `command`/`args`, point `CAPGATE_API_URL` at your public control plane, and set `CAPGATE_API_KEY` from dashboard **API keys** (or Railway `CAPGATE_DEV_KEY` for the initial seed). Restart the MCP server in Cursor after changing env.
 
 ## Gate your own MCP tools
 
