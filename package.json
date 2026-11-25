@@ -1,0 +1,34 @@
+{
+  "name": "capgate",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "capgate-mcp": "./dist/index.js"
+  },
+  "main": "./dist/policy.js",
+  "types": "./dist/policy.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js",
+      "require": "./dist/policy.js",
+      "default": "./dist/policy.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/policy.test.js",
+    "self-check": "npm run build && node scripts/self-check.mjs",
+    "start": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "yaml": "^2.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
+}

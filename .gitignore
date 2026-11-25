@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.capgate/
+.env
+*.log
+.DS_Store

@@ -1,0 +1,9 @@
+dailySpendCapUsd: 5
+killed: false
+tools:
+  capgate_demo_search:
+    risk: low
+    costUsd: 0.01
+  capgate_demo_refund:
+    risk: spend
+    costUsd: 0.05
