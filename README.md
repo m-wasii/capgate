@@ -37,7 +37,7 @@ npm start
   "mcpServers": {
     "capgate": {
       "command": "node",
-      "args": ["C:/Users/DELL/Projects/capgate/dist/index.js"],
+      "args": ["C:/Users/Murta/Projects/capgate/dist/index.js"],
       "env": {
         "CAPGATE_API_URL": "http://localhost:3000",
         "CAPGATE_API_KEY": "dev-key"
