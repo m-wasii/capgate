@@ -51,4 +51,4 @@ Do not reuse another agent’s branch. Resolve conflicts on the PR — do not ed
 
 ## Ponytail skip / risk lines
 
-Weigh writer skip/risk lines after each return. Act in-wave if they threaten correctness, data loss, security, CI, or acceptance; otherwise ignore.
+Weigh writer skip/risk lines after each return (and before the writer ends the turn). Auto-address if necessary — do not wait for the user to quote them. Act in-wave if they threaten correctness, data loss, security, CI, or acceptance; otherwise leave the skip.

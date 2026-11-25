@@ -38,4 +38,4 @@ git worktree add .worktrees/<branch-name> -b <branch-name> origin/master
 
 ## Ponytail skipped / risk lines
 
-Agents in ponytail mode end with what they skipped and any residual risk. Coordinators must weigh those lines: act in the same wave if the skip/risk can cause wrong behavior, data loss, security holes, broken CI, or a failed acceptance gate; otherwise ignore and move on.
+Agents in ponytail mode end with what they skipped and any residual risk. **Before ending the turn**, the same agent (and any coordinator) must weigh those lines and **auto-address** if necessary — do not wait for the user to quote them. Act in the same wave if the skip/risk can cause wrong behavior, data loss, security holes, broken CI, or a failed acceptance gate; otherwise leave the skip and move on.
