@@ -1,0 +1,41 @@
+---
+description: One write agent per git worktree/branch so parallel agents never overwrite each other
+alwaysApply: true
+---
+
+# Parallel agent worktrees
+
+## Hard rule
+
+- **One write agent ↔ one branch ↔ one worktree** under `.worktrees/<branch-name>/`.
+- Never start a second write agent in the same working tree. Read-only explore/review agents may share a tree.
+- Cap active write worktrees at **3** unless the user raises it.
+- Linear team **CAP** is the backlog source of truth. Cursor Goals embed `CAP-N: …`. Branch names: `feat/cap-<n>-<slug>`.
+
+## Before writing (any feature/fix/docs work)
+
+1. Confirm isolation: `git rev-parse --git-dir` vs `--git-common-dir`. If equal (and not a submodule), you are in the primary checkout — create a worktree before editing.
+2. From repo root (primary checkout):
+
+```powershell
+git fetch origin master
+git worktree add .worktrees/<branch-name> -b <branch-name> origin/master
+```
+
+3. Move the agent root to that worktree path before any edits (`move_agent_to_root`), or edit only under that worktree path.
+4. Own a **disjoint** scope (different Linear issue / surface). Do not pair two writers on the shared `capgate` policy API / `file:../capgate` contract in one wave.
+
+## Sibling cloud checkout
+
+- This repo is OSS. Cloud writers must pin `file:../capgate` to the **primary** checkout `C:\Users\Murta\Projects\capgate`, not this worktree, unless the issue is OSS-only and intentionally ships a policy API change first.
+
+## Finish
+
+- Push the feature branch with `-u`; open a PR to `master`.
+- Do not reuse another agent’s branch. Resolve merge conflicts on the PR — do not “fix” by editing the other worktree.
+- Remove finished trees: `git worktree remove .worktrees/<branch-name>` after the branch is merged or abandoned.
+- Close the Cursor Goal and move Linear `CAP-N` to Done after merge.
+
+## Ponytail skipped / risk lines
+
+Agents in ponytail mode end with what they skipped and any residual risk. Coordinators must weigh those lines: act in the same wave if the skip/risk can cause wrong behavior, data loss, security holes, broken CI, or a failed acceptance gate; otherwise ignore and move on.
