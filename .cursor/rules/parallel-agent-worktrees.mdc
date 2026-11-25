@@ -22,7 +22,7 @@ git fetch origin master
 git worktree add .worktrees/<branch-name> -b <branch-name> origin/master
 ```
 
-3. Move the agent root to that worktree path before any edits (`move_agent_to_root`), or edit only under that worktree path.
+3. Prefer `move_agent_to_root` to the worktree. If declined (multi-root already on primaries), edit only under the worktree absolute path — do not write to the primary checkout.
 4. Own a **disjoint** scope (different Linear issue / surface). Do not pair two writers on the shared `capgate` policy API / `file:../capgate` contract in one wave.
 
 ## Sibling cloud checkout
