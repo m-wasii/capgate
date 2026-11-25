@@ -28,11 +28,11 @@ git fetch origin master
 git worktree add .worktrees/feat-cap-N-slug -b feat/cap-N-slug origin/master
 ```
 
-Confirm isolation: `git-dir` ≠ `git-common-dir`. Then move the agent root to that worktree (or edit only under it).
+Confirm isolation: `git-dir` ≠ `git-common-dir`. Prefer `move_agent_to_root` to the worktree; if declined, edit only under that worktree’s absolute path.
 
 ## Sibling cloud / OSS
 
-- Cloud worktrees pin OSS to `C:\Users\Murta\Projects\capgate` (primary), never another OSS writer’s worktree.
+- Cloud worktrees run `scripts/ensure-oss-pin.ps1` so `.worktrees/capgate` junctions to this primary checkout.
 - OSS-only issues never edit `capgate-cloud`.
 
 ## Finish
