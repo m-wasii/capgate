@@ -10,3 +10,6 @@ tools:
   shell_exec:
     risk: spend
     costUsd: 0.02
+  capgate_dogfood_ping:
+    risk: low
+    costUsd: 0.005
