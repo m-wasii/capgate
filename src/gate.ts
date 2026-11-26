@@ -15,6 +15,15 @@ import { loadPolicy, localCommit, localDecide } from "./local.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+if (process.env.CAPGATE_LOCAL_APPROVE === "1") {
+  const scope = process.env.CAPGATE_API_URL
+    ? "ignored while CAPGATE_API_URL is set — cloud approvals still apply"
+    : "local YAML only: needs_approval tools run with no human approval";
+  console.error(
+    `[capgate] WARNING: CAPGATE_LOCAL_APPROVE=1 is active (${scope}). Never set this on managed or production MCP deployments.`,
+  );
+}
+
 function gatePaths() {
   return {
     apiUrl: process.env.CAPGATE_API_URL?.replace(/\/$/, ""),

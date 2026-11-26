@@ -80,7 +80,7 @@ set CAPGATE_LOCAL_APPROVE=1
 npm start
 ```
 
-`CAPGATE_LOCAL_APPROVE=1` auto-approves local `needs_approval` tools (demo refund) so you can feel the gate without a dashboard.
+`CAPGATE_LOCAL_APPROVE=1` auto-approves local `needs_approval` tools (demo refund) so you can feel the gate without a dashboard. The MCP server prints a **stderr** warning on start. **Do not set this** on any machine where agents run against a real control plane or untrusted users — use Path A and dashboard approvals instead. It has **no effect** when `CAPGATE_API_URL` is set.
 
 ### 2. Cursor MCP (no `CAPGATE_API_URL`)
 
