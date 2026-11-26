@@ -28,6 +28,10 @@ try {
   const refund = decide(policy, loadMeter(meterPath), "capgate_demo_refund");
   assert.deepEqual(refund, { allow: false, reason: "needs_approval" });
 
+  const shellExec = decide(policy, loadMeter(meterPath), "shell_exec");
+  assert.deepEqual(shellExec, { allow: false, reason: "needs_approval" });
+  assert.equal(policy.tools.shell_exec.costUsd, 0.02);
+
   const killed = decide({ ...policy, killed: true }, loadMeter(meterPath), "capgate_demo_search");
   assert.deepEqual(killed, { allow: false, reason: "killed" });
 

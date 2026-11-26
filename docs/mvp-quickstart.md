@@ -112,6 +112,6 @@ Same tool sequence as Path A:
 
 ## Gate your own tools next
 
-`capgate_demo_*` tools are teaching stubs. Register real MCP tools with `registerGatedTool` and add matching entries under `tools:` in policy (local YAML or cloud dashboard). See [README](../README.md#gate-your-own-mcp-tools).
+`capgate_demo_*` tools are teaching stubs. Register real MCP tools with `registerGatedTool` and add matching entries under `tools:` in policy (local YAML or cloud dashboard). See [examples/gated-tool-stub.ts](../examples/gated-tool-stub.ts) and [README](../README.md#gate-your-own-mcp-tools).
 
 Contributor workflow (worktrees, Linear, PR titles): [parallel-agents.md](./parallel-agents.md).
