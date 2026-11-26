@@ -7,3 +7,6 @@ tools:
   capgate_demo_refund:
     risk: spend
     costUsd: 0.05
+  shell_exec:
+    risk: spend
+    costUsd: 0.02
