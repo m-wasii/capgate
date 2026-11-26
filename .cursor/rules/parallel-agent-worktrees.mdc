@@ -11,6 +11,7 @@ alwaysApply: true
 - Never start a second write agent in the same working tree. Read-only explore/review agents may share a tree.
 - Cap active write worktrees at **3** unless the user raises it.
 - Linear team **CAP** is the backlog source of truth. Cursor Goals embed `CAP-N: …`. Branch names: `feat/cap-<n>-<slug>`.
+- GitHub PR **title** must be `CAP-N: <Linear issue title>` (same `CAP-N` as the branch / Goal; title text matches Linear) so GitHub ↔ Linear auto-links the PR.
 
 ## Before writing (any feature/fix/docs work)
 
@@ -31,7 +32,7 @@ git worktree add .worktrees/<branch-name> -b <branch-name> origin/master
 
 ## Finish
 
-- Push the feature branch with `-u`; open a PR to `master`.
+- Push the feature branch with `-u`; open a PR to `master` with title `CAP-N: <Linear issue title>` (not a paraphrase).
 - Do not reuse another agent’s branch. Resolve merge conflicts on the PR — do not “fix” by editing the other worktree.
 - Remove finished trees: `git worktree remove .worktrees/<branch-name>` after the branch is merged or abandoned.
 - Close the Cursor Goal and move Linear `CAP-N` to Done after merge.

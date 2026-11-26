@@ -9,6 +9,7 @@ One write agent owns one branch and one worktree under `.worktrees/<branch>/`. C
 | Linear team **CAP** | Backlog + status (source of truth). Issues `CAP-N`. |
 | Cursor Goal | Agent objective. Text starts with `CAP-N: …`. |
 | Git worktree | Isolated writes. Path `.worktrees/feat/cap-<n>-<slug>/` (folder may use hyphens). |
+| GitHub PR title | `CAP-N: <Linear issue title>` — must match Linear (enables auto-link / status sync). |
 
 Flow: Linear issue → In Progress → CreateGoal → worktree → PR → merge → Goal complete → Linear Done.
 
@@ -38,14 +39,26 @@ Confirm isolation: `git-dir` ≠ `git-common-dir`. Prefer `move_agent_to_root` t
 ## Finish
 
 1. Push with `-u` and open a PR to `master`.
-2. Squash-merge when ready.
-3. Remove the tree:
+2. Set the PR title to the Linear issue verbatim:
+
+   ```text
+   CAP-11: Ops: prod smoke script (API dogfood gate)
+   ```
+
+   Use the same `CAP-N` as the branch and Cursor Goal; copy the title from Linear (do not paraphrase).
+
+   ```powershell
+   gh pr create --title "CAP-11: Ops: prod smoke script (API dogfood gate)" --body "..."
+   ```
+
+3. Squash-merge when ready.
+4. Remove the tree:
 
 ```powershell
 git worktree remove .worktrees/feat-cap-N-slug
 ```
 
-4. Complete the Cursor Goal; set Linear `CAP-N` to Done.
+5. Complete the Cursor Goal; set Linear `CAP-N` to Done.
 
 Do not reuse another agent’s branch. Resolve conflicts on the PR — do not edit the other worktree.
 
