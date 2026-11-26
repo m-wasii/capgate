@@ -37,7 +37,7 @@ Hosted control plane (dashboard, durable meter, rotated keys): set `CAPGATE_API_
 Example (replace the key):
 
 ```bash
-set CAPGATE_API_URL=https://control-plane-production-163a495c.up.railway.app
+set CAPGATE_API_URL=https://capgate.up.railway.app
 set CAPGATE_API_KEY=<your-bearer-key>
 npm start
 ```
