@@ -4,6 +4,10 @@ Agent spend + approval gate as an MCP server. Apache-2.0.
 
 Hosted control plane lives in the private sibling repo `capgate-cloud`.
 
+## Quickstart
+
+**[docs/mvp-quickstart.md](docs/mvp-quickstart.md)** — clone → Railway control plane (or local YAML) → Cursor MCP → first gated call.
+
 ## Install
 
 ```bash
@@ -32,9 +36,7 @@ set CAPGATE_API_KEY=dev-key
 npm start
 ```
 
-Hosted control plane (dashboard, durable meter, rotated keys): set `CAPGATE_API_URL` to your deployed `capgate-cloud` HTTPS origin and `CAPGATE_API_KEY` to an active Bearer key from the dashboard (or the one-time seed from `CAPGATE_DEV_KEY` on Railway). Do not commit production secrets.
-
-Example (replace the key):
+Hosted control plane: set `CAPGATE_API_URL` to your deployed `capgate-cloud` HTTPS origin and `CAPGATE_API_KEY` to an active Bearer key. Step-by-step: [mvp-quickstart.md](docs/mvp-quickstart.md) (hosted path). **Deploy on Railway:** see the `capgate-cloud` repository README (*Deploy on Railway*)—not duplicated here.
 
 ```bash
 set CAPGATE_API_URL=https://capgate.up.railway.app
@@ -61,7 +63,7 @@ Local:
 }
 ```
 
-Hosted: use the same `command`/`args`, point `CAPGATE_API_URL` at your public control plane, and set `CAPGATE_API_KEY` from dashboard **API keys** (or Railway `CAPGATE_DEV_KEY` for the initial seed). Restart the MCP server in Cursor after changing env.
+Hosted: same shape as above; env details in [mvp-quickstart.md](docs/mvp-quickstart.md). Restart the MCP server in Cursor after changing env.
 
 ## Gate your own MCP tools
 
