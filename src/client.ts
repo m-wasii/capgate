@@ -5,6 +5,10 @@ export interface CloudStatus {
   meter: Meter;
 }
 
+export interface AuthorizeResult extends CloudStatus {
+  authorizationId: string;
+}
+
 export interface ApprovalRecord {
   id: string;
   toolName: string;
@@ -82,6 +86,58 @@ export async function cloudCommit(
     body: JSON.stringify({ toolName, approvalId }),
   });
   if (!res.ok) throw new Error(`commit ${res.status}`);
+  return (await res.json()) as CloudStatus;
+}
+
+export async function cloudAuthorize(
+  baseUrl: string,
+  apiKey: string,
+  toolName: string,
+  approvalId?: string,
+): Promise<AuthorizeResult> {
+  const res = await fetch(`${baseUrl}/api/v1/authorize`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ toolName, approvalId }),
+  });
+  if (!res.ok) throw new Error(`authorize ${res.status}`);
+  return (await res.json()) as AuthorizeResult;
+}
+
+export async function cloudSettle(
+  baseUrl: string,
+  apiKey: string,
+  authorizationId: string,
+): Promise<CloudStatus> {
+  const res = await fetch(`${baseUrl}/api/v1/settle`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ authorizationId }),
+  });
+  if (!res.ok) throw new Error(`settle ${res.status}`);
+  return (await res.json()) as CloudStatus;
+}
+
+export async function cloudRelease(
+  baseUrl: string,
+  apiKey: string,
+  authorizationId: string,
+): Promise<CloudStatus> {
+  const res = await fetch(`${baseUrl}/api/v1/release`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ authorizationId }),
+  });
+  if (!res.ok) throw new Error(`release ${res.status}`);
   return (await res.json()) as CloudStatus;
 }
 

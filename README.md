@@ -70,3 +70,14 @@ Hosted: same shape as above; env details in [mvp-quickstart.md](docs/mvp-quickst
 Demos (`capgate_demo_*`) ship with `npm start` for teaching only. **`capgate_dogfood_ping`** is a non-demo stub on the default MCP server for hosted dogfood (see [mvp-quickstart.md](docs/mvp-quickstart.md)). For your own tools, use [`registerGatedTool`](./src/gate.ts) and add matching names under `tools:` in policy (local YAML or cloud). Unregistered names are blocked with `unknown_tool`.
 
 Copy-paste pattern: **[examples/gated-tool-stub.ts](examples/gated-tool-stub.ts)** (`shell_exec` is registered in [policy.example.yaml](policy.example.yaml)).
+
+## Cloud execution order
+
+On the hosted path, [`gatedRun`](./src/gate.ts) calls **`POST /api/v1/authorize`** (kill switch + cap + charge), runs your tool, then **`settle`** on success or **`release`** to refund the meter when the tool throws. [`cloudDecide`](./src/client.ts) is still available when a caller only needs a decision preview.
+
+**Crash windows** (no generic idempotency for arbitrary downstream tools):
+
+- Crash **after authorize, before** your tool runs → budget is charged; the side effect did not run.
+- Crash **after** your tool runs, **before settle** → budget stays charged; the side effect may have completed.
+
+`POST /api/v1/commit` remains for legacy integrations; the bundled MCP server uses authorize → run → settle/release.

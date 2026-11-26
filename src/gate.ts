@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
-  cloudCommit,
+  cloudAuthorize,
   cloudCreateApproval,
   cloudDecide,
   cloudGetApproval,
+  cloudRelease,
+  cloudSettle,
   sleep,
 } from "./client.js";
 import { loadPolicy, localCommit, localDecide } from "./local.js";
@@ -23,16 +25,36 @@ function gatePaths() {
   };
 }
 
-/** Decide + commit (cloud or local), then run. Unregistered names fail with unknown_tool. */
+async function runAfterAuthorize(
+  apiUrl: string,
+  apiKey: string,
+  toolName: string,
+  approvalId: string | undefined,
+  run: () => string,
+): Promise<string> {
+  const auth = await cloudAuthorize(apiUrl, apiKey, toolName, approvalId);
+  try {
+    const out = run();
+    await cloudSettle(apiUrl, apiKey, auth.authorizationId);
+    return out;
+  } catch (e) {
+    try {
+      await cloudRelease(apiUrl, apiKey, auth.authorizationId);
+    } catch {
+      // Best-effort refund; surface the tool failure.
+    }
+    throw e;
+  }
+}
+
+/** Decide + authorize, run, then settle (or release on throw). Unregistered names fail with unknown_tool. */
 export async function gatedRun(toolName: string, args: unknown, run: () => string): Promise<string> {
   const { apiUrl, apiKey, policyPath, meterPath, approvalTimeoutMs } = gatePaths();
 
   if (apiUrl) {
     const decision = await cloudDecide(apiUrl, apiKey, toolName);
     if (decision.allow) {
-      const out = run();
-      await cloudCommit(apiUrl, apiKey, toolName);
-      return out;
+      return runAfterAuthorize(apiUrl, apiKey, toolName, undefined, run);
     }
     if (decision.reason === "needs_approval") {
       const approval = await cloudCreateApproval(apiUrl, apiKey, toolName, args);
@@ -40,9 +62,7 @@ export async function gatedRun(toolName: string, args: unknown, run: () => strin
       while (Date.now() < deadline) {
         const cur = await cloudGetApproval(apiUrl, apiKey, approval.id);
         if (cur.status === "approved") {
-          const out = run();
-          await cloudCommit(apiUrl, apiKey, toolName, approval.id);
-          return out;
+          return runAfterAuthorize(apiUrl, apiKey, toolName, approval.id, run);
         }
         if (cur.status === "denied") throw new Error(`capgate denied approval ${approval.id}`);
         await sleep(1500);
