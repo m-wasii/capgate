@@ -28,7 +28,7 @@ npm run self-check
 
 ### 1. Deploy or use a control plane
 
-**Run your own:** use the private **`capgate-cloud`** repo. Railway deploy, volumes, and env vars are documented there under **Deploy on Railway**—do not duplicate that guide here.
+**Run your own:** use the private **`capgate-cloud`** repo. Railway deploy, volumes, and env vars are documented there under **Deploy on Railway**—do not duplicate that guide here. Ongoing releases: connect GitHub on `master` with **Wait for CI** (see **GitHub auto-deploy** and **Auto deploy unavailable** in that README).
 
 **Dogfood instance (if you have a Bearer key):** `https://capgate.up.railway.app` (health: `GET /api/health`).
 
