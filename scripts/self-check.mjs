@@ -32,6 +32,10 @@ try {
   assert.deepEqual(shellExec, { allow: false, reason: "needs_approval" });
   assert.equal(policy.tools.shell_exec.costUsd, 0.02);
 
+  const dogfoodPing = decide(policy, loadMeter(meterPath), "capgate_dogfood_ping");
+  assert.equal(dogfoodPing.allow, true);
+  assert.equal(policy.tools.capgate_dogfood_ping.costUsd, 0.005);
+
   const killed = decide({ ...policy, killed: true }, loadMeter(meterPath), "capgate_demo_search");
   assert.deepEqual(killed, { allow: false, reason: "killed" });
 

@@ -42,6 +42,20 @@ registerGatedTool(
   ({ orderId, amountUsd }) => JSON.stringify({ ok: true, refunded: { orderId, amountUsd } }),
 );
 
+registerGatedTool(
+  server,
+  "capgate_dogfood_ping",
+  "Non-demo dogfood stub: read-only echo behind the same gate as real tools.",
+  { message: z.string().optional() },
+  ({ message }) =>
+    JSON.stringify({
+      ok: true,
+      tool: "capgate_dogfood_ping",
+      echoed: message ?? "pong",
+      at: new Date().toISOString(),
+    }),
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error("capgate mcp on stdio");

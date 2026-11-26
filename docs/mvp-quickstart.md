@@ -7,7 +7,7 @@ Get from a fresh clone to a **gated tool call** in Cursor—either against a **h
 | MCP server (this repo) | Gates tool calls; talks to cloud or local policy |
 | Control plane (`capgate-cloud`, private) | Caps, kill switch, approvals, audit (hosted path only) |
 
-Demo tools in `policy.example.yaml` match the cloud seed policy (`capgate_demo_search` @ $0.01, `capgate_demo_refund` @ $0.05 spend/approval).
+Demo tools in `policy.example.yaml` match the cloud seed policy (`capgate_demo_search` @ $0.01, `capgate_demo_refund` @ $0.05 spend/approval). The MCP server also registers **`capgate_dogfood_ping`** (non-demo); add it in the cloud dashboard before calling it on Path A.
 
 ---
 
@@ -62,6 +62,7 @@ In a Cursor chat with **capgate** tools enabled:
 1. **`capgate_status`** — confirms kill switch, daily cap ($5 default), and spend so far from the control plane.
 2. **`capgate_demo_search`** — low risk; should **allow** and charge **$0.01** against the daily meter.
 3. **`capgate_demo_refund`** — spend risk; should **block** with `needs_approval` until you approve in the **capgate-cloud dashboard** (then the MCP polls and completes the call).
+4. **`capgate_dogfood_ping`** — non-demo stub (registered in OSS `src/index.ts`). In the dashboard **Tool policies**, add `capgate_dogfood_ping` with risk **low** and cost **0.005** USD, then call it from Cursor with an optional `message`. It should **allow** without approval and charge against the daily meter.
 
 If a tool name is not in policy, Capgate returns **`unknown_tool`**—that is intentional.
 

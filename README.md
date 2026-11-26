@@ -67,6 +67,6 @@ Hosted: same shape as above; env details in [mvp-quickstart.md](docs/mvp-quickst
 
 ## Gate your own MCP tools
 
-Demos (`capgate_demo_*`) ship with `npm start` for teaching only. For real tools, use [`registerGatedTool`](./src/gate.ts) and add matching names under `tools:` in policy (local YAML or cloud). Unregistered names are blocked with `unknown_tool`.
+Demos (`capgate_demo_*`) ship with `npm start` for teaching only. **`capgate_dogfood_ping`** is a non-demo stub on the default MCP server for hosted dogfood (see [mvp-quickstart.md](docs/mvp-quickstart.md)). For your own tools, use [`registerGatedTool`](./src/gate.ts) and add matching names under `tools:` in policy (local YAML or cloud). Unregistered names are blocked with `unknown_tool`.
 
 Copy-paste pattern: **[examples/gated-tool-stub.ts](examples/gated-tool-stub.ts)** (`shell_exec` is registered in [policy.example.yaml](policy.example.yaml)).
