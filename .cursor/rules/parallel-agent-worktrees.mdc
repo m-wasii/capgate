@@ -25,6 +25,8 @@ git fetch origin master
 git worktree add .worktrees/<branch-name> -b <branch-name> origin/master
 ```
 
+Then run `npm ci` once in the new worktree — it has no `node_modules`, and a dependency added since your last install otherwise fails as `MODULE_NOT_FOUND` before any test runs.
+
 3. Prefer `move_agent_to_root` to the worktree. If declined (multi-root already on primaries), edit only under the worktree absolute path — do not write to the primary checkout.
 4. Own a **disjoint** scope (different Linear issue / surface). Do not pair two writers on the shared `capgate` policy API / `file:../capgate` contract in one wave.
 

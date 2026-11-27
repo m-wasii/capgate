@@ -46,6 +46,8 @@ git fetch origin master
 git worktree add .worktrees/feat-cap-N-slug -b feat/cap-N-slug origin/master
 ```
 
+Then run `npm ci` once in the new worktree — it has no `node_modules`, and a dependency added since your last install otherwise fails as `MODULE_NOT_FOUND` before any test runs.
+
 Confirm isolation: `git-dir` ≠ `git-common-dir`. Prefer `move_agent_to_root` to the worktree; if declined, edit only under that worktree’s absolute path.
 
 ## Sibling cloud / OSS
