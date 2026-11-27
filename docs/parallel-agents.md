@@ -1,6 +1,22 @@
 # Parallel agents operator guide
 
-One write agent owns one branch and one worktree under `.worktrees/<branch>/`. Cap concurrent write worktrees at **3**.
+One write agent owns one branch and one worktree under `.worktrees/<branch>/`. Scale to **8 agent slots** per wave, of which at most **5** are concurrent write worktrees. The rest are read-only reviewers or no-code work (interviews, ADRs, docs).
+
+Slot count is a ceiling, not a target. A wave with one writer runs one writer.
+
+## Slot budget
+
+| Slots | Kind | Rule |
+|-------|------|------|
+| 8 | total | ceiling per wave — never pad to fill it |
+| 5 | write agents | one branch + one worktree each |
+| 3 | remaining | no-code (docs, ADRs, validation) or read-only review |
+
+**Single-writer files.** One writer per wave, no matter how many slots are free:
+
+- `capgate/src/policy.ts`, `src/gate.ts`, `src/client.ts` — the shared policy contract, touched from both repos
+- `capgate-cloud/lib/store.ts`
+- `capgate-cloud/app/dashboard.tsx` — until the split merges; afterwards one writer per `app/components/*` panel
 
 ## Mapping
 
@@ -19,6 +35,7 @@ Flow: Linear issue → In Progress → CreateGoal → worktree → PR → merge 
 - Read-only explore/review agents may share a tree; writers must not.
 - Prefer disjoint scopes (different labels / repos) when multiple writers run in parallel.
 - Do not run two writers that both change the shared `capgate` policy API in the same wave.
+- Slot assignments and per-wave file ownership live in the Linear doc *CapGate — 8-agent wave plan and file-ownership map*.
 
 ## Create a worktree
 
