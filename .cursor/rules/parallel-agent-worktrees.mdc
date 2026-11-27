@@ -9,7 +9,9 @@ alwaysApply: true
 
 - **One write agent ↔ one branch ↔ one worktree** under `.worktrees/<branch-name>/`.
 - Never start a second write agent in the same working tree. Read-only explore/review agents may share a tree.
-- Cap active write worktrees at **3** unless the user raises it.
+- Cap active **write** worktrees at **5** of **8 agent slots** per wave. The other slots are read-only review or no-code work (interviews, ADRs, docs). Slot count is a ceiling, not a fill target.
+- **Single-writer paths — one writer per wave regardless of free slots:** `capgate/src/policy.ts` + `gate.ts` + `client.ts` (the policy contract both repos share), `capgate-cloud/lib/store.ts`, and `capgate-cloud/app/dashboard.tsx` until the split merges.
+- Per-wave slot assignments and file ownership: Linear doc *CapGate — 8-agent wave plan and file-ownership map*.
 - Linear team **CAP** is the backlog source of truth. Cursor Goals embed `CAP-N: …`. Branch names: `feat/cap-<n>-<slug>`.
 - GitHub PR **title** must be `CAP-N: <Linear issue title>` (same `CAP-N` as the branch / Goal; title text matches Linear) so GitHub ↔ Linear auto-links the PR.
 
