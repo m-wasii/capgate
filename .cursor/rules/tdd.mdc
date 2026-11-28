@@ -1,0 +1,38 @@
+---
+description: Implement test-first — write the failing test, capture the red run, then make it pass
+alwaysApply: true
+---
+
+# Test-first (TDD), mandatory
+
+Every change is built red → green → refactor. A test written after the implementation describes what the code happens to do; a test written before it states what the code must do. Only the second one catches the bug that was about to ship.
+
+## Required order
+
+1. **Write the failing test first**, from the issue's acceptance criteria — not from the implementation you already have in mind.
+2. **Run it and capture the failure.** It must fail for the *right* reason: an assertion failure, not a missing import, a typo, or a syntax error. Fix the harness until the failure is the behaviour you intend to change.
+3. Implement the minimum that makes it pass.
+4. Re-run the focused test, then the full suite.
+5. Refactor with everything green.
+
+## Evidence
+
+Report both runs in the PR or hand-off:
+
+- the **red** command and its exact failure message
+- the **green** command and its tally
+
+"Tests added" is not evidence. `npx tsx --test tests/foo.test.mjs` → `AssertionError: expected 'pending' to be 'expired'` is evidence.
+
+## Rules of engagement
+
+- **No implementation before a failing test exists.** If a change genuinely cannot be tested (pure wiring, a config edit), say so explicitly and say how it was verified instead.
+- **A bug fix starts with a test that reproduces the bug against unmodified `master`.** If the test passes before the fix, it is not testing the bug.
+- **Never write a test that cannot fail.** No assertions against your own constants, no `assert.ok(true)`, no snapshot of whatever the code happened to emit.
+- **One test file per issue.** Do not append to a file another agent owns — that collision is the one branches exist to prevent.
+- **Ordering and concurrency claims need an observable test.** If the contract is "settle only after the handler resolves", record the call sequence in a stub and assert the order. Do not reason about it in prose.
+
+## Running tests here
+
+- **`capgate` (OSS)** builds before it tests. One file: `npm run build && node --test dist/<name>.test.js`. All: `npm test`. A test referencing a not-yet-existing export fails as a **compile** error — a valid red, but it looks like a type error rather than an assertion.
+- **`capgate-cloud`** runs `.mjs` tests directly. One file: `npx --yes tsx --test tests/<name>.test.mjs`. All: `npm test`. No build step, so the red is a clean assertion failure.
