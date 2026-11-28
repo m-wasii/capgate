@@ -312,12 +312,11 @@ export function localCommit(policy: Policy, meterPath: string, toolName: string)
 export interface LocalChargeResult {
   decision: Decision;
   meter: Meter;
-}
-
-/**
+}/**
  * Read → decide → apply → write in one lock-protected critical section. Nothing can interleave
  * between the cap check and the charge, so this is the race-free replacement for
- * `localDecide` + `localCommit` (gate.ts still uses both; see CAP-57 follow-up).
+ * `localDecide` + `localCommit`. gate.ts uses it on the allowed path and charges before running;
+ * `localCommit` remains for the externally-approved `needs_approval` path.
  */
 export function localCharge(
   policy: Policy,
@@ -338,4 +337,41 @@ export function localCharge(
     },
     options,
   );
+}
+
+/**
+ * Undo a `localCharge`/`localCommit` for a call that failed after being charged.
+ *
+ * Lock-held like `localCommit`, floored at $0 so a refund can never write a negative
+ * `spentUsd`, and a no-op when the meter row belongs to another day — refunding then would
+ * corrupt the new day's spend. Best-effort by contract: an unknown tool or an unwritable
+ * meter leaves the charge in place rather than throwing, so a refund can never mask the
+ * handler's original error.
+ */
+export function localRefund(policy: Policy, meterPath: string, toolName: string, now = new Date()): Meter {
+  // Advisory only: the gate ignores it. On a refund failure the meter file is what matters,
+  // and it is left exactly as it was charged.
+  let observed: Meter | undefined;
+  try {
+    return withMeterLock(meterPath, () => {
+      const meter = loadMeter(meterPath);
+      observed = meter;
+      const tool = policy.tools[toolName];
+      if (!tool) return meter;
+      if (meter.day !== utcDay(now)) return meter;
+      const refunded: Meter = {
+        day: meter.day,
+        spentUsd: Math.max(0, Math.round((meter.spentUsd - tool.costUsd) * 1e6) / 1e6),
+      };
+      saveMeter(meterPath, refunded);
+      return refunded;
+    });
+  } catch {
+    // Best effort: leave the charge in place. The caller rethrows the handler's own error.
+    try {
+      return loadMeter(meterPath);
+    } catch {
+      return observed ?? { day: utcDay(now), spentUsd: 0 };
+    }
+  }
 }

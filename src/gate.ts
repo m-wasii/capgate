@@ -11,7 +11,7 @@ import {
   cloudSettle,
   sleep,
 } from "./client.js";
-import { loadPolicy, localCommit, localDecide } from "./local.js";
+import { loadPolicy, localCharge, localCommit, localRefund } from "./local.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -34,18 +34,17 @@ function gatePaths() {
   };
 }
 
-async function runAfterAuthorize(
+async function runAfterAuthorize<T>(
   apiUrl: string,
   apiKey: string,
   toolName: string,
   approvalId: string | undefined,
-  run: () => string,
-): Promise<string> {
+  run: () => T | Promise<T>,
+): Promise<T> {
   const auth = await cloudAuthorize(apiUrl, apiKey, toolName, approvalId);
+  let out: T;
   try {
-    const out = run();
-    await cloudSettle(apiUrl, apiKey, auth.authorizationId);
-    return out;
+    out = await run();
   } catch (e) {
     try {
       await cloudRelease(apiUrl, apiKey, auth.authorizationId);
@@ -54,10 +53,18 @@ async function runAfterAuthorize(
     }
     throw e;
   }
+  // Settle only after the handler resolved. Kept outside the handler's catch so a
+  // settle failure propagates with the spend still charged — the tool already ran.
+  await cloudSettle(apiUrl, apiKey, auth.authorizationId);
+  return out;
 }
 
 /** Decide + authorize, run, then settle (or release on throw). Unregistered names fail with unknown_tool. */
-export async function gatedRun(toolName: string, args: unknown, run: () => string): Promise<string> {
+export async function gatedRun<T>(
+  toolName: string,
+  args: unknown,
+  run: () => T | Promise<T>,
+): Promise<T> {
   const { apiUrl, apiKey, policyPath, meterPath, approvalTimeoutMs } = gatePaths();
 
   if (apiUrl) {
@@ -82,18 +89,27 @@ export async function gatedRun(toolName: string, args: unknown, run: () => strin
   }
 
   const policy = loadPolicy(policyPath);
-  const { decision } = localDecide(policy, meterPath, toolName);
+  const { decision } = localCharge(policy, meterPath, toolName);
   if (!decision.allow) {
     if (decision.reason === "needs_approval" && process.env.CAPGATE_LOCAL_APPROVE === "1") {
-      const out = run();
+      // localCharge writes nothing for needs_approval; localCommit charges it under the lock.
       localCommit(policy, meterPath, toolName);
-      return out;
+    } else {
+      throw new Error(`capgate blocked: ${decision.reason}`);
     }
-    throw new Error(`capgate blocked: ${decision.reason}`);
   }
-  const out = run();
-  localCommit(policy, meterPath, toolName);
-  return out;
+  // Charged before the tool runs, so a call that lost the cap race never executed. A failure
+  // afterwards refunds the charge and rethrows the handler's own error, never the refund's.
+  try {
+    return await run();
+  } catch (e) {
+    try {
+      localRefund(policy, meterPath, toolName);
+    } catch {
+      // Best effort: leave the charge in place rather than mask the handler failure.
+    }
+    throw e;
+  }
 }
 
 /**
@@ -105,7 +121,7 @@ export function registerGatedTool(
   name: string,
   description: string,
   schema: z.ZodRawShape,
-  run: (args: Record<string, unknown>) => string,
+  run: (args: Record<string, unknown>) => string | Promise<string>,
 ) {
   return server.tool(name, description, schema, async (args) => {
     try {
