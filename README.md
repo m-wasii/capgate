@@ -1,5 +1,7 @@
 # Capgate (OSS)
 
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 Agent spend + approval gate as an MCP server. Apache-2.0.
 
 Hosted control plane lives in the private sibling repo `capgate-cloud`.
@@ -108,3 +110,7 @@ On the hosted path, [`gatedRun`](./src/gate.ts) calls **`POST /api/v1/authorize`
 - Crash **after** your tool runs, **before settle** → budget stays charged; the side effect may have completed.
 
 `POST /api/v1/commit` remains for legacy integrations; the bundled MCP server uses authorize → run → settle/release.
+
+## License
+
+CapGate is licensed under the [Apache License, Version 2.0](LICENSE). Third-party components and their licenses are listed in [NOTICE](NOTICE).
