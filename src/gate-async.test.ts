@@ -7,8 +7,8 @@ import { test } from "node:test";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { gatedRun, registerGatedTool } from "./gate.js";
-import { loadMeter, saveMeter } from "./local.js";
-import { utcDay } from "./policy.js";
+import { loadMeter, localRefund, saveMeter } from "./local.js";
+import { utcDay, type Policy } from "./policy.js";
 
 const COST_USD = 0.01;
 
@@ -255,6 +255,17 @@ tools:
     costUsd: 0.01
 `;
 
+function loadPolicyForTest(): Policy {
+  return {
+    dailySpendCapUsd: 0.05,
+    killed: false,
+    tools: {
+      spend: { risk: "low", costUsd: 0.01 },
+      refund: { risk: "spend", costUsd: 0.01 },
+    },
+  };
+}
+
 interface LocalEnv {
   dir: string;
   meterPath: string;
@@ -368,5 +379,60 @@ test("local needs_approval with CAPGATE_LOCAL_APPROVE=1 charges before running",
     assert.equal(result, "approved locally");
     assert.equal(spentWhenHandlerRan, 0.01, "an approved local tool must charge before running");
     assert.equal(loadMeter(meterPath).spentUsd, 0.01);
+  });
+});
+
+test("local handler that throws refunds: nothing charged, original error surfaces", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+
+    await assert.rejects(
+      () =>
+        gatedRun("spend", {}, async () => {
+          throw new Error("handler exploded");
+        }),
+      (e) => e instanceof Error && e.message === "handler exploded",
+    );
+
+    assert.equal(loadMeter(meterPath).spentUsd, 0, "a failed local tool must not consume the cap");
+  });
+});
+
+test("local approved handler that throws refunds and surfaces the handler error", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+    process.env.CAPGATE_LOCAL_APPROVE = "1";
+
+    await assert.rejects(
+      () =>
+        gatedRun("refund", {}, () => {
+          throw new Error("approved tool failed");
+        }),
+      (e) => e instanceof Error && e.message === "approved tool failed",
+    );
+
+    assert.equal(loadMeter(meterPath).spentUsd, 0, "the approved path must refund a failed tool");
+  });
+});
+
+test("localRefund never drives the meter negative", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    const policy = loadPolicyForTest();
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+
+    // Refund a tool that was never charged: the floor is zero, not a negative spend.
+    const after = localRefund(policy, meterPath, "spend");
+    assert.equal(after.spentUsd, 0);
+    assert.equal(loadMeter(meterPath).spentUsd, 0);
+  });
+});
+
+test("localRefund is best-effort for an unknown tool and never throws", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    const policy = loadPolicyForTest();
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0.03 });
+
+    const after = localRefund(policy, meterPath, "not_registered");
+    assert.equal(after.spentUsd, 0.03, "an unknown tool leaves the charge in place");
   });
 });
