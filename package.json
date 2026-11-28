@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/policy.test.js dist/gate.test.js",
+    "test": "npm run build && node --test \"dist/*.test.js\"",
     "self-check": "npm run build && node scripts/self-check.mjs",
     "start": "npm run build && node dist/index.js"
   },
