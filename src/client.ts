@@ -138,10 +138,11 @@ export async function cloudDecide(
   baseUrl: string,
   apiKey: string,
   toolName: string,
+  args: Record<string, unknown> = {},
 ): Promise<Decision & { approvalId?: string }> {
   return request<Decision & { approvalId?: string }>("decide", `${baseUrl}/api/v1/decide`, apiKey, {
     method: "POST",
-    body: { toolName },
+    body: { toolName, args },
     // Pure policy read: replaying it cannot spend money.
     retryable: true,
   });
@@ -185,12 +186,14 @@ export async function cloudAuthorize(
   baseUrl: string,
   apiKey: string,
   toolName: string,
+  args: Record<string, unknown> = {},
   approvalId?: string,
 ): Promise<AuthorizeResult> {
   // Never retried: a double authorize double-charges.
   return request<AuthorizeResult>("authorize", `${baseUrl}/api/v1/authorize`, apiKey, {
     method: "POST",
-    body: { toolName, approvalId },
+    // The server prices the call from `args` and binds the approval to `hashArgs(args)`.
+    body: { toolName, args, approvalId },
   });
 }
 
