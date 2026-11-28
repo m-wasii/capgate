@@ -1,0 +1,28 @@
+CapGate
+Copyright 2026 Muhammad Wasi
+
+This product is licensed under the Apache License, Version 2.0. See the
+LICENSE file in this distribution for the full license text, or obtain a
+copy at http://www.apache.org/licenses/LICENSE-2.0
+
+CapGate is developed at https://github.com/m-wasii/capgate
+
+Third-party components
+----------------------
+
+CapGate depends on the following packages, each distributed under its own
+license. None of these packages ships a NOTICE file, so section 4(d) of the
+Apache License requires no third-party attribution notice to be propagated
+here. The list below is informational and was verified against each
+installed package's own metadata and license file.
+
+  @modelcontextprotocol/sdk   MIT          Copyright (c) 2024 Anthropic, PBC
+  yaml (eemeli/yaml)          ISC          Copyright Eemeli Aro <eemeli@gmail.com>
+  zod                         MIT          Copyright (c) 2025 Colin McDonnell
+
+Build-time development dependencies:
+
+  typescript                  Apache-2.0   Copyright (c) Microsoft Corporation
+  @types/node                 MIT          Copyright (c) Microsoft Corporation
+
+Full license texts are included with each package.
