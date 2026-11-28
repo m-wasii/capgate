@@ -1,0 +1,240 @@
+import assert from "node:assert/strict";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { test } from "node:test";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { gatedRun, registerGatedTool } from "./gate.js";
+
+const COST_USD = 0.01;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface MockCloud {
+  baseUrl: string;
+  spentUsd: number;
+  settleCalls: number;
+  releaseCalls: number;
+  /** Ordered record of control-plane calls and handler markers, for ordering tests. */
+  events: string[];
+  close: () => Promise<void>;
+}
+
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8").trim();
+      try {
+        resolve(raw ? (JSON.parse(raw) as Record<string, unknown>) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+/** Minimal control plane. `settleStatus` lets a test make settle fail on demand. */
+function startMockCloud(settleStatus = 200): Promise<MockCloud> {
+  const state: MockCloud = {
+    baseUrl: "",
+    spentUsd: 0,
+    settleCalls: 0,
+    releaseCalls: 0,
+    events: [],
+    close: async () => {},
+  };
+  const auths = new Map<string, "pending" | "settled" | "released">();
+  let nextId = 1;
+
+  const server = createServer(async (req, res: ServerResponse) => {
+    const url = req.url ?? "";
+    const body = await readJsonBody(req);
+    res.setHeader("content-type", "application/json");
+
+    if (url === "/api/v1/decide" && req.method === "POST") {
+      res.writeHead(200);
+      res.end(JSON.stringify({ allow: true, costUsd: COST_USD }));
+      return;
+    }
+    if (url === "/api/v1/authorize" && req.method === "POST") {
+      const id = `auth-${nextId++}`;
+      state.spentUsd = Math.round((state.spentUsd + COST_USD) * 1e6) / 1e6;
+      state.events.push("authorize");
+      auths.set(id, "pending");
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          authorizationId: id,
+          policy: { dailySpendCapUsd: 5, killed: false, tools: {} },
+          meter: { day: "2099-01-01", spentUsd: state.spentUsd },
+        }),
+      );
+      return;
+    }
+    if (url === "/api/v1/settle" && req.method === "POST") {
+      state.settleCalls += 1;
+      state.events.push("settle");
+      if (settleStatus !== 200) {
+        res.writeHead(settleStatus);
+        res.end(JSON.stringify({ error: "settle_failed" }));
+        return;
+      }
+      const record = auths.get(body.authorizationId as string);
+      if (record !== "pending") {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "already_consumed" }));
+        return;
+      }
+      auths.set(body.authorizationId as string, "settled");
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          policy: { dailySpendCapUsd: 5, killed: false, tools: {} },
+          meter: { day: "2099-01-01", spentUsd: state.spentUsd },
+        }),
+      );
+      return;
+    }
+    if (url === "/api/v1/release" && req.method === "POST") {
+      state.releaseCalls += 1;
+      state.events.push("release");
+      const record = auths.get(body.authorizationId as string);
+      if (record !== "pending") {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "already_consumed" }));
+        return;
+      }
+      auths.set(body.authorizationId as string, "released");
+      state.spentUsd = Math.max(0, Math.round((state.spentUsd - COST_USD) * 1e6) / 1e6);
+      res.writeHead(200);
+      res.end(
+        JSON.stringify({
+          policy: { dailySpendCapUsd: 5, killed: false, tools: {} },
+          meter: { day: "2099-01-01", spentUsd: state.spentUsd },
+        }),
+      );
+      return;
+    }
+    res.writeHead(404);
+    res.end(JSON.stringify({ error: "not_found" }));
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address();
+      assert.ok(addr && typeof addr === "object");
+      state.baseUrl = `http://127.0.0.1:${addr.port}`;
+      state.close = () =>
+        new Promise((done, err) => {
+          server.close((e) => (e ? err(e) : done()));
+        });
+      resolve(state);
+    });
+  });
+}
+
+async function withCloud<T>(settleStatus: number, fn: (cloud: MockCloud) => Promise<T>): Promise<T> {
+  const cloud = await startMockCloud(settleStatus);
+  const prevUrl = process.env.CAPGATE_API_URL;
+  const prevKey = process.env.CAPGATE_API_KEY;
+  process.env.CAPGATE_API_URL = cloud.baseUrl;
+  process.env.CAPGATE_API_KEY = "test";
+  try {
+    return await fn(cloud);
+  } finally {
+    if (prevUrl === undefined) delete process.env.CAPGATE_API_URL;
+    else process.env.CAPGATE_API_URL = prevUrl;
+    if (prevKey === undefined) delete process.env.CAPGATE_API_KEY;
+    else process.env.CAPGATE_API_KEY = prevKey;
+    await cloud.close();
+  }
+}
+
+test("settle failure after a successful handler keeps the charge and never releases", async () => {
+  await withCloud(500, async (cloud) => {
+    let handlerRan = false;
+
+    await assert.rejects(
+      () =>
+        gatedRun("capgate_demo_search", {}, () => {
+          handlerRan = true;
+          return "tool ran";
+        }),
+      (e) => e instanceof Error && e.message === "settle 500",
+    );
+
+    assert.equal(handlerRan, true);
+    assert.equal(cloud.settleCalls, 1);
+    assert.equal(cloud.releaseCalls, 0, "a failed settle must not refund a tool that already ran");
+    assert.equal(cloud.spentUsd, COST_USD, "the spend must remain charged");
+  });
+});
+
+test("async handler that resolves is awaited: settle once, never release", async () => {
+  await withCloud(200, async (cloud) => {
+    const result = await gatedRun("capgate_demo_search", {}, async () => {
+      await delay(10);
+      return "async result";
+    });
+
+    assert.equal(result, "async result");
+    assert.equal(cloud.settleCalls, 1);
+    assert.equal(cloud.releaseCalls, 0);
+    assert.equal(cloud.spentUsd, COST_USD);
+  });
+});
+
+test("async handler that rejects releases once, never settles, and rethrows", async () => {
+  await withCloud(200, async (cloud) => {
+    await assert.rejects(
+      () =>
+        gatedRun("capgate_demo_search", {}, async () => {
+          await delay(10);
+          throw new Error("async tool failed");
+        }),
+      (e) => e instanceof Error && e.message === "async tool failed",
+    );
+
+    assert.equal(cloud.releaseCalls, 1);
+    assert.equal(cloud.settleCalls, 0);
+    assert.equal(cloud.spentUsd, 0);
+  });
+});
+
+test("settle is observed only after the async handler resolves", async () => {
+  await withCloud(200, async (cloud) => {
+    await gatedRun("capgate_demo_search", {}, async () => {
+      cloud.events.push("handler:start");
+      await delay(20);
+      cloud.events.push("handler:resolved");
+      return "done";
+    });
+
+    const resolvedAt = cloud.events.indexOf("handler:resolved");
+    const settledAt = cloud.events.indexOf("settle");
+    assert.ok(resolvedAt >= 0, `handler marker missing: ${cloud.events.join(" -> ")}`);
+    assert.ok(settledAt >= 0, `settle marker missing: ${cloud.events.join(" -> ")}`);
+    assert.ok(
+      resolvedAt < settledAt,
+      `settle fired before the handler resolved: ${cloud.events.join(" -> ")}`,
+    );
+  });
+});
+
+test("registerGatedTool accepts an async handler with no cast", () => {
+  const server = new McpServer({ name: "capgate-test", version: "0.0.0" });
+  registerGatedTool(
+    server,
+    "capgate_async_demo",
+    "Async handler compile check.",
+    { query: z.string() },
+    async ({ query }) => {
+      await delay(1);
+      return JSON.stringify({ ok: true, query });
+    },
+  );
+});
