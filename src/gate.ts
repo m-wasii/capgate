@@ -11,7 +11,7 @@ import {
   cloudSettle,
   sleep,
 } from "./client.js";
-import { loadPolicy, localCommit, localDecide } from "./local.js";
+import { loadPolicy, localCharge, localCommit } from "./local.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -89,18 +89,17 @@ export async function gatedRun<T>(
   }
 
   const policy = loadPolicy(policyPath);
-  const { decision } = localDecide(policy, meterPath, toolName);
+  const { decision } = localCharge(policy, meterPath, toolName);
   if (!decision.allow) {
     if (decision.reason === "needs_approval" && process.env.CAPGATE_LOCAL_APPROVE === "1") {
-      const out = await run();
+      // localCharge writes nothing for needs_approval; localCommit charges it under the lock.
       localCommit(policy, meterPath, toolName);
-      return out;
+      return run();
     }
     throw new Error(`capgate blocked: ${decision.reason}`);
   }
-  const out = await run();
-  localCommit(policy, meterPath, toolName);
-  return out;
+  // Already charged inside the lock above, so a call that lost the cap race never ran the tool.
+  return run();
 }
 
 /**

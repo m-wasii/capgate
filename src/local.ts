@@ -317,7 +317,8 @@ export interface LocalChargeResult {
 /**
  * Read → decide → apply → write in one lock-protected critical section. Nothing can interleave
  * between the cap check and the charge, so this is the race-free replacement for
- * `localDecide` + `localCommit` (gate.ts still uses both; see CAP-57 follow-up).
+ * `localDecide` + `localCommit`. gate.ts uses it on the allowed path and charges before running;
+ * `localCommit` remains for the externally-approved `needs_approval` path.
  */
 export function localCharge(
   policy: Policy,

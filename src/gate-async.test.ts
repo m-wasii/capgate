@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { gatedRun, registerGatedTool } from "./gate.js";
+import { loadMeter, saveMeter } from "./local.js";
+import { utcDay } from "./policy.js";
 
 const COST_USD = 0.01;
 
@@ -237,4 +242,131 @@ test("registerGatedTool accepts an async handler with no cast", () => {
       return JSON.stringify({ ok: true, query });
     },
   );
+});
+
+const LOCAL_POLICY = `dailySpendCapUsd: 0.05
+killed: false
+tools:
+  spend:
+    risk: low
+    costUsd: 0.01
+  refund:
+    risk: spend
+    costUsd: 0.01
+`;
+
+interface LocalEnv {
+  dir: string;
+  meterPath: string;
+}
+
+async function withLocalMode<T>(fn: (env: LocalEnv) => Promise<T>): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), "capgate-gate-local-"));
+  const meterPath = join(dir, "meter.json");
+  writeFileSync(join(dir, "policy.yaml"), LOCAL_POLICY);
+  const saved = {
+    url: process.env.CAPGATE_API_URL,
+    policy: process.env.CAPGATE_POLICY,
+    meter: process.env.CAPGATE_METER,
+    approve: process.env.CAPGATE_LOCAL_APPROVE,
+  };
+  delete process.env.CAPGATE_API_URL;
+  process.env.CAPGATE_POLICY = join(dir, "policy.yaml");
+  process.env.CAPGATE_METER = meterPath;
+  delete process.env.CAPGATE_LOCAL_APPROVE;
+  try {
+    return await fn({ dir, meterPath });
+  } finally {
+    const restore = (key: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    };
+    restore("CAPGATE_API_URL", saved.url);
+    restore("CAPGATE_POLICY", saved.policy);
+    restore("CAPGATE_METER", saved.meter);
+    restore("CAPGATE_LOCAL_APPROVE", saved.approve);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("local mode charges before the handler runs", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+
+    let spentWhenHandlerRan = -1;
+    const result = await gatedRun("spend", {}, () => {
+      spentWhenHandlerRan = loadMeter(meterPath).spentUsd;
+      return "ran";
+    });
+
+    assert.equal(result, "ran");
+    assert.equal(
+      spentWhenHandlerRan,
+      0.01,
+      "the meter must already be charged when the handler executes",
+    );
+  });
+});
+
+test("a local tool that loses the cap race never executes", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    // Headroom for exactly one $0.01 call.
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0.04 });
+
+    let handlerRuns = 0;
+    // Barrier: the first handler waits for a second one, up to a bound. With charge-before-run
+    // the second call can never reach its handler, so the wait times out and exactly one runs.
+    const handler = async () => {
+      handlerRuns += 1;
+      const deadline = Date.now() + 200;
+      while (handlerRuns < 2 && Date.now() < deadline) await delay(5);
+      return "ran";
+    };
+
+    const outcomes = await Promise.allSettled([
+      gatedRun("spend", {}, handler),
+      gatedRun("spend", {}, handler),
+    ]);
+
+    assert.equal(handlerRuns, 1, "a call that loses the cap race must be blocked before running");
+    const rejected = outcomes.filter((o) => o.status === "rejected");
+    assert.equal(rejected.length, 1, `outcomes: ${JSON.stringify(outcomes)}`);
+    const reason = rejected[0].status === "rejected" ? rejected[0].reason : undefined;
+    assert.match(
+      reason instanceof Error ? reason.message : String(reason),
+      /capgate blocked: cap/,
+    );
+    assert.equal(loadMeter(meterPath).spentUsd, 0.05);
+  });
+});
+
+test("local allowed path charges exactly once", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+
+    await gatedRun("spend", {}, async () => "one");
+
+    assert.equal(
+      loadMeter(meterPath).spentUsd,
+      0.01,
+      "a single allowed call must charge one tool cost, not two",
+    );
+  });
+});
+
+test("local needs_approval with CAPGATE_LOCAL_APPROVE=1 charges before running", async () => {
+  await withLocalMode(async ({ meterPath }) => {
+    saveMeter(meterPath, { day: utcDay(), spentUsd: 0 });
+    process.env.CAPGATE_LOCAL_APPROVE = "1";
+
+    let spentWhenHandlerRan = -1;
+    const result = await gatedRun("refund", {}, async () => {
+      spentWhenHandlerRan = loadMeter(meterPath).spentUsd;
+      return "approved locally";
+    });
+
+    assert.equal(result, "approved locally");
+    assert.equal(spentWhenHandlerRan, 0.01, "an approved local tool must charge before running");
+    assert.equal(loadMeter(meterPath).spentUsd, 0.01);
+  });
 });
