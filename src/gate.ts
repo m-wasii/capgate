@@ -38,10 +38,11 @@ async function runAfterAuthorize<T>(
   apiUrl: string,
   apiKey: string,
   toolName: string,
+  args: Record<string, unknown>,
   approvalId: string | undefined,
   run: () => T | Promise<T>,
 ): Promise<T> {
-  const auth = await cloudAuthorize(apiUrl, apiKey, toolName, approvalId);
+  const auth = await cloudAuthorize(apiUrl, apiKey, toolName, args, approvalId);
   let out: T;
   try {
     out = await run();
@@ -62,15 +63,15 @@ async function runAfterAuthorize<T>(
 /** Decide + authorize, run, then settle (or release on throw). Unregistered names fail with unknown_tool. */
 export async function gatedRun<T>(
   toolName: string,
-  args: unknown,
+  args: Record<string, unknown>,
   run: () => T | Promise<T>,
 ): Promise<T> {
   const { apiUrl, apiKey, policyPath, meterPath, approvalTimeoutMs } = gatePaths();
 
   if (apiUrl) {
-    const decision = await cloudDecide(apiUrl, apiKey, toolName);
+    const decision = await cloudDecide(apiUrl, apiKey, toolName, args);
     if (decision.allow) {
-      return runAfterAuthorize(apiUrl, apiKey, toolName, undefined, run);
+      return runAfterAuthorize(apiUrl, apiKey, toolName, args, undefined, run);
     }
     if (decision.reason === "needs_approval") {
       const approval = await cloudCreateApproval(apiUrl, apiKey, toolName, args);
@@ -78,7 +79,7 @@ export async function gatedRun<T>(
       while (Date.now() < deadline) {
         const cur = await cloudGetApproval(apiUrl, apiKey, approval.id);
         if (cur.status === "approved") {
-          return runAfterAuthorize(apiUrl, apiKey, toolName, approval.id, run);
+          return runAfterAuthorize(apiUrl, apiKey, toolName, args, approval.id, run);
         }
         if (cur.status === "denied") throw new Error(`capgate denied approval ${approval.id}`);
         await sleep(1500);
@@ -89,11 +90,11 @@ export async function gatedRun<T>(
   }
 
   const policy = loadPolicy(policyPath);
-  const { decision } = localCharge(policy, meterPath, toolName);
+  const { decision } = localCharge(policy, meterPath, toolName, { args });
   if (!decision.allow) {
     if (decision.reason === "needs_approval" && process.env.CAPGATE_LOCAL_APPROVE === "1") {
       // localCharge writes nothing for needs_approval; localCommit charges it under the lock.
-      localCommit(policy, meterPath, toolName);
+      localCommit(policy, meterPath, toolName, args);
     } else {
       throw new Error(`capgate blocked: ${decision.reason}`);
     }
@@ -104,7 +105,7 @@ export async function gatedRun<T>(
     return await run();
   } catch (e) {
     try {
-      localRefund(policy, meterPath, toolName);
+      localRefund(policy, meterPath, toolName, new Date(), args);
     } catch {
       // Best effort: leave the charge in place rather than mask the handler failure.
     }
@@ -125,7 +126,9 @@ export function registerGatedTool(
 ) {
   return server.tool(name, description, schema, async (args) => {
     try {
-      const text = await gatedRun(name, args, () => run(args as Record<string, unknown>));
+      const text = await gatedRun(name, args as Record<string, unknown>, () =>
+        run(args as Record<string, unknown>),
+      );
       return { content: [{ type: "text", text }] };
     } catch (e) {
       return {

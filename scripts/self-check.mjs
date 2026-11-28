@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { decide } from "../dist/policy.js";
+import { computeCost, decide } from "../dist/policy.js";
 import { loadPolicy, localCommit, localDecide, loadMeter } from "../dist/local.js";
 import { gatedRun, registerGatedTool } from "../dist/gate.js";
 
@@ -25,8 +25,24 @@ try {
   localCommit(policy, meterPath, "capgate_demo_search");
   assert.equal(loadMeter(meterPath).spentUsd, 0.01);
 
-  const refund = decide(policy, loadMeter(meterPath), "capgate_demo_refund");
+  const refund = decide(policy, loadMeter(meterPath), "capgate_demo_refund", new Date(), {
+    orderId: "self-check",
+    amountUsd: 5,
+  });
   assert.deepEqual(refund, { allow: false, reason: "needs_approval" });
+  assert.equal(
+    computeCost(policy.tools.capgate_demo_refund, { amountUsd: 5 }),
+    0.1,
+    "2% of a $5 refund is $0.10",
+  );
+  assert.deepEqual(
+    decide(policy, loadMeter(meterPath), "capgate_demo_refund", new Date(), {
+      orderId: "self-check",
+      amountUsd: 50_000,
+    }),
+    { allow: false, reason: "cap" },
+    "a $50,000 refund must be blocked by the derived cost",
+  );
 
   const shellExec = decide(policy, loadMeter(meterPath), "shell_exec");
   assert.deepEqual(shellExec, { allow: false, reason: "needs_approval" });

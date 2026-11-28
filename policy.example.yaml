@@ -6,7 +6,16 @@ tools:
     costUsd: 0.01
   capgate_demo_refund:
     risk: spend
-    costUsd: 0.05
+    # Percent pricing: 2% of the refund `amountUsd` argument, floored at a cent and
+    # clamped at $500 per call. `pct` is a fraction (0.02 = 2%), never a percentage.
+    # `costUsd` is required and must equal the minimum charge (floorUsd).
+    costUsd: 0.01
+    cost:
+      kind: percent
+      arg: amountUsd
+      pct: 0.02
+      floorUsd: 0.01
+      maxUsd: 500
   shell_exec:
     risk: spend
     costUsd: 0.02

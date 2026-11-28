@@ -11,12 +11,19 @@ import {
 } from "node:fs";
 import { dirname } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { applySpend, decide, utcDay, type Decision, type Meter, type Policy } from "./policy.js";
+import { applySpend, computeCost, decide, utcDay, validateToolPolicy, type Decision, type Meter, type Policy } from "./policy.js";
 
 export function loadPolicy(path: string): Policy {
   const raw = parseYaml(readFileSync(path, "utf8")) as Policy;
   if (typeof raw.dailySpendCapUsd !== "number" || !raw.tools) {
     throw new Error(`invalid policy at ${path}`);
+  }
+  for (const [name, tool] of Object.entries(raw.tools)) {
+    try {
+      validateToolPolicy(name, tool);
+    } catch (e) {
+      throw new Error(`invalid policy at ${path}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   return {
     dailySpendCapUsd: raw.dailySpendCapUsd,
@@ -282,9 +289,14 @@ export function withMeterLock<T>(meterPath: string, fn: () => T, options: MeterL
   }
 }
 
-export function localDecide(policy: Policy, meterPath: string, toolName: string) {
+export function localDecide(
+  policy: Policy,
+  meterPath: string,
+  toolName: string,
+  args: Record<string, unknown> = {},
+) {
   const meter = loadMeter(meterPath);
-  return { decision: decide(policy, meter, toolName), meter };
+  return { decision: decide(policy, meter, toolName, new Date(), args), meter };
 }
 
 /**
@@ -292,18 +304,23 @@ export function localDecide(policy: Policy, meterPath: string, toolName: string)
  * Throws `capgate blocked: cap` instead of writing when a concurrent call took the headroom first,
  * so N parallel callers can never push total spend past the daily cap.
  */
-export function localCommit(policy: Policy, meterPath: string, toolName: string): Meter {
+export function localCommit(
+  policy: Policy,
+  meterPath: string,
+  toolName: string,
+  args: Record<string, unknown> = {},
+): Meter {
   return withMeterLock(meterPath, () => {
     const tool = policy.tools[toolName];
     if (!tool) throw new Error(`unknown tool ${toolName}`);
     const meter = loadMeter(meterPath);
-    const decision = decide(policy, meter, toolName);
+    const decision = decide(policy, meter, toolName, new Date(), args);
     // The caller has already authorized needs_approval tools; only the cap and the kill switch
     // are re-checked here, which is exactly what a concurrent caller can change.
     if (!decision.allow && decision.reason !== "needs_approval") {
       throw new Error(`capgate blocked: ${decision.reason}`);
     }
-    const next = applySpend(meter, tool.costUsd);
+    const next = applySpend(meter, computeCost(tool, args));
     saveMeter(meterPath, next);
     return next;
   });
@@ -312,7 +329,15 @@ export function localCommit(policy: Policy, meterPath: string, toolName: string)
 export interface LocalChargeResult {
   decision: Decision;
   meter: Meter;
-}/**
+}
+
+export interface LocalChargeOptions extends MeterLockOptions {
+  now?: Date;
+  /** Raw call arguments: the derived price and the approval identity both come from these. */
+  args?: Record<string, unknown>;
+}
+
+/**
  * Read → decide → apply → write in one lock-protected critical section. Nothing can interleave
  * between the cap check and the charge, so this is the race-free replacement for
  * `localDecide` + `localCommit`. gate.ts uses it on the allowed path and charges before running;
@@ -322,14 +347,14 @@ export function localCharge(
   policy: Policy,
   meterPath: string,
   toolName: string,
-  options: MeterLockOptions & { now?: Date } = {},
+  options: LocalChargeOptions = {},
 ): LocalChargeResult {
   const now = options.now ?? new Date();
   return withMeterLock(
     meterPath,
     () => {
       const meter = loadMeter(meterPath);
-      const decision = decide(policy, meter, toolName, now);
+      const decision = decide(policy, meter, toolName, now, options.args ?? {});
       if (!decision.allow) return { decision, meter };
       const next = applySpend(meter, decision.costUsd, now);
       saveMeter(meterPath, next);
@@ -348,7 +373,13 @@ export function localCharge(
  * meter leaves the charge in place rather than throwing, so a refund can never mask the
  * handler's original error.
  */
-export function localRefund(policy: Policy, meterPath: string, toolName: string, now = new Date()): Meter {
+export function localRefund(
+  policy: Policy,
+  meterPath: string,
+  toolName: string,
+  now = new Date(),
+  args: Record<string, unknown> = {},
+): Meter {
   // Advisory only: the gate ignores it. On a refund failure the meter file is what matters,
   // and it is left exactly as it was charged.
   let observed: Meter | undefined;
@@ -359,9 +390,10 @@ export function localRefund(policy: Policy, meterPath: string, toolName: string,
       const tool = policy.tools[toolName];
       if (!tool) return meter;
       if (meter.day !== utcDay(now)) return meter;
+      const costUsd = computeCost(tool, args);
       const refunded: Meter = {
         day: meter.day,
-        spentUsd: Math.max(0, Math.round((meter.spentUsd - tool.costUsd) * 1e6) / 1e6),
+        spentUsd: Math.max(0, Math.round((meter.spentUsd - costUsd) * 1e6) / 1e6),
       };
       saveMeter(meterPath, refunded);
       return refunded;
